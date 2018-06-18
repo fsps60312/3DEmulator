@@ -72,10 +72,11 @@ namespace _3DEmulator
             n--; m--;
             int[,] result = new int[n + 1, m + 1];
             int progress = 0, preprogress = -1;
+            var startTime = DateTime.Now;
             await Task.Run(() =>
             {
                 System.Threading.Thread.CurrentThread.Priority = System.Threading.ThreadPriority.Lowest;
-                Parallel.For(0, n + 1, new ParallelOptions { MaxDegreeOfParallelism = 3 }, new Action<int>(i =>
+                Parallel.For(0, n + 1, /*new ParallelOptions { MaxDegreeOfParallelism = 10 },*/ new Action<int>(i =>
                        {
                            System.Threading.Thread.CurrentThread.Priority = System.Threading.ThreadPriority.Lowest;
                            if (kase != kase_counter) return;
@@ -93,6 +94,10 @@ namespace _3DEmulator
                            }
                        }));
             });
+            if(kase==kase_counter&&(DateTime.Now-startTime).TotalSeconds>10)
+            {
+                await SaveImage(await ToImageSource(result), $"{kase}.bmp");
+            }
             //System.Diagnostics.Debug.WriteLine("OK");
             return result;
         }
@@ -133,9 +138,11 @@ namespace _3DEmulator
                     {255,255,0,0 },
                     //{255,255,128+128/3,0 },
                     //{255,128+128/3,255,0 },
-                    { 255,255,255,0},
+                    //{ 255,255,255,0},
                     {255,0,255,0 },
-                    {255,0,0,255 }
+                    {255,255,0,0 },
+                    {255,0,255,0 },
+                    //{255,0,0,255 }
                     //{255,255,0,255 }
             };
             var format = PixelFormats.Bgra32;
