@@ -8,33 +8,49 @@ using System.Windows.Media.Media3D;
 
 namespace _3DEmulator
 {
-    class BouncingRectangle
+    class BouncingHexagon
     {
-        public Model3DGroup model=null;
-        bool canceled = false;
+        public Model3DGroup model = null;
         double M = 1;
         double I;
-        double /*X=0,*/ Y=0,T=0;
-        double W, H;
+        double /*X=0,*/ Y = 0, T = 0;
+        List<double> endPoints;
+        double R;
         double /*speedX = 0,*/ speedY = 0, speedT = 0;
         double bounceCoe = 0.7;
         MyTrans origin;
-        public BouncingRectangle(double x, double z,bool createModel)
+        public BouncingHexagon(double ratio, double r, bool createModel)
         {
-            W = x; H = z;
+            R = r;
             //https://zh.wikipedia.org/wiki/轉動慣量列表
-            I = M / 12 * (W * W + H * H);
-            var cube = CreateCube(x, 2, z);
-            cube.Transform = new MyTrans(cube).Translate(new Vector3D(-x / 2, -1, -z / 2)).Value;
+            endPoints = new List<double>();
+            endPoints.Add(0);
+            endPoints.Add(Math.PI / (2 + ratio));
+            endPoints.Add(Math.PI * (1 + ratio) / (2 + ratio));
+            endPoints = endPoints.Concat(endPoints.Select(a => a + Math.PI)).ToList();
+            I = M * GetI(endPoints.Select(a => new Tuple<double, double>(r * Math.Cos(a), r * Math.Sin(a))).ToList());
             if (createModel)
             {
-                model = new Model3DGroup();
-                model.Children.Add(cube);
-                model.Children.Add(CreateModel(new SolidColorBrush(Colors.Red), new Point3D(x * 0.2, 0, -z * 0.6), new Point3D(-x * 0.2, 0, -z * 0.6), new Point3D(0, 0, -z * 0.8)));
+                model = CreateHex(endPoints, r, r / 2);
                 origin = new MyTrans(model);
             }
         }
-        double GetNsToStop(double x,double y)
+        static double Cross(Tuple<double, double> a, Tuple<double, double> b) { return a.Item1 * b.Item2 - b.Item1 * a.Item2; }
+        static double Dot(Tuple<double, double> a, Tuple<double, double> b) { return a.Item1 * b.Item1 + a.Item2 * b.Item2; }
+        static double GetI(List<Tuple<double, double>> p)
+        {
+            int n = p.Count;
+            p.Add(p[0]);
+            double a = 0, b = 0;
+            for (int i = 0; i < n; i++)
+            {
+                double c = Math.Abs(Cross(p[i + 1], p[i]));
+                a += c * (Dot(p[i + 1], p[i + 1]) + Dot(p[i + 1], p[i]) + Dot(p[i], p[i]));
+                b += c;
+            }
+            return a / b / 6;
+        }
+        double GetNsToStop(double x, double y)
         {
             ///speed: speedY + (x sin(t) + y cos(t))'
             ///     = speedY + t x cos(T) - t y sin(T)
@@ -48,26 +64,28 @@ namespace _3DEmulator
             return -(speedY + speedT * (x * Math.Cos(T) - y * Math.Sin(T))) /
                 (1 / M + Math.Pow(x * Math.Cos(T) - y * Math.Sin(T), 2) / I);
         }
-        double GetNs(double x,double y)
+        double GetNs(double x, double y)
         {
             return (1.0 + bounceCoe) * GetNsToStop(x, y);
         }
-        void ApplyNs(double x,double y,double ns)
+        void ApplyNs(double x, double y, double ns)
         {
             speedY += ns / M;
             speedT += ns * (x * Math.Cos(T) - y * Math.Sin(T)) / I;
         }
-        void Bounce(double x,double y)
+        void Bounce(double x, double y)
         {
             double ns = GetNs(x, y);
             ApplyNs(x, y, ns);
         }
-        public void DropFrom(double h,double t)
+        public void DropFrom(double h, double t)
         {
-            /*X = 0;*/ Y = h;T = t;
-            /*speedX =*/ speedY = speedT = 0;
+            /*X = 0;*/
+            Y = h; T = t;
+            /*speedX =*/
+            speedY = speedT = 0;
         }
-        double SpeedUp(double x,double y,double r)
+        double SpeedUp(double x, double y, double r)
         {
             ///Y+t*speedY-gt^2/2+ x*Math.Sin(T+speedT*t) + y*Math.Cos(T+speedT*t) = 0
             ///speedY-gt+ speedT*x*cos(T+speedT*t) - speedT*y*sin(T+speedT*t) = 0
@@ -76,7 +94,7 @@ namespace _3DEmulator
             ///x*cos(T+speedT*t) = y*sin(T+speedT*t)
             //System.Diagnostics.Trace.Assert(Y <= r && speedY < 0);
             ///sy=speedY-r*speedT
-            double sy = speedY- r * Math.Abs(speedT);//negative
+            double sy = speedY - r * Math.Abs(speedT);//negative
             double oy = Y + x * Math.Sin(T) + y * Math.Cos(T);
             ///oy+t*sy-gt^2/2=0
             ///-gt^2/2+sy*t+oy=0
@@ -87,44 +105,36 @@ namespace _3DEmulator
         }
         double SpeedUp()
         {
-            double r = Math.Sqrt(W * W + H * H) / 2;
-            if (Y >= r && speedY > 0)
+            if (Y >= R && speedY > 0)
             {
                 ///Y+t*speedY-gt^2/2=r
                 ///-gt^2/2+speedY*t+(Y-r)=0
                 ///t=(-speedY+-sqrt(speedY^2+2g(Y-r)))/(-g)
                 /// =(speedY+-sqrt(speedY^2+2g(Y-r)))/(g)
-                return (speedY + Math.Sqrt(Math.Pow(speedY, 2) + 2 * G * (Y - r))) / G;
+                return (speedY + Math.Sqrt(Math.Pow(speedY, 2) + 2 * G * (Y - R))) / G;
             }
             else
             {
-                return new double[4]
-                {
-                    SpeedUp(-W/2,-H/2,r),
-                    SpeedUp(-W/2,H/2,r),
-                    SpeedUp(W/2,-H/2,r),
-                    SpeedUp(W/2,H/2,r)
-                }.Min();
+                return endPoints.Select(a => SpeedUp(R * Math.Cos(a), R * Math.Sin(a), R)).Min();
             }
         }
-        bool IsCollide(double x,double y)
+        bool IsCollide(double x, double y)
         {
             return Y + x * Math.Sin(T) + y * Math.Cos(T) < 0 &&
                 speedY + speedT * (x * Math.Cos(T) - y * Math.Sin(T)) < 0;
         }
         const double G = 9.8;
-        double[,] corners;
         void Simulate(double dt)
         {
-            for (int i = 0; i < 4; i++)
+            foreach(var a in endPoints)
             {
-                double x = corners[i, 0], y = corners[i, 1];
+                double x = R * Math.Cos(a), y = R * Math.Sin(a);
                 if (IsCollide(x, y)) Bounce(x, y);
             }
             Y += speedY * dt;
             T += speedT * dt;
             if (T < 0) T += 2 * Math.PI;
-            else if(T >= 2 * Math.PI) T -= 2 * Math.PI;
+            else if (T >= 2 * Math.PI) T -= 2 * Math.PI;
             speedY -= G * dt;
         }
         double dt = 0.0001;
@@ -135,39 +145,32 @@ namespace _3DEmulator
         double dropFromHeight, dropFromAngle;
         int AngleToZeroThree(double angle)
         {
-            if(!(0 <= angle && angle < 2.0 * Math.PI))
+            if (!(0 <= angle && angle < 2.0 * Math.PI))
             {
                 System.Windows.MessageBox.Show($"angle: {angle}\r\n2 pi - angle: {2.0 * Math.PI - angle}\r\n" +
                     $"from h: {dropFromHeight}\r\nfrom a: {dropFromAngle}");
             }
             System.Diagnostics.Trace.Assert(0 <= angle && angle < 2.0 * Math.PI);
-            double a = 0.5 * Math.PI - Math.Atan2(H, W);
-            if (angle <= a) return 0;
-            if (angle <= Math.PI - a) return 1;
-            if (angle <= Math.PI + a) return 2;
-            if (angle <= 2.0 * Math.PI - a) return 3;
-            return 0;
+            angle -= Math.PI / 2;
+            if (angle < 0) angle += 2 * Math.PI;
+            for(int i=endPoints.Count()-1;i>=0;i--)
+            {
+                if (endPoints[i] <= angle) return i;
+            }
+            System.Windows.MessageBox.Show($"endPoints: {string.Join(", ", endPoints.Select(a => a / Math.PI * 180))}\r\nangle: {angle}");
+            throw new Exception();
         }
-        public void Cancel() { canceled = true; }
-        public async Task<int> Start(double height,double angle,bool infinite=true)
+        public async Task<int> Start(double height, double angle, bool infinite = true)
         {
-            dropFromHeight = height;dropFromAngle = angle;
+            dropFromHeight = height; dropFromAngle = angle;
             DropFrom(height, angle);
             //DropFrom(10, 30.0 / 180 * Math.PI);
-            corners = new double[4, 2]
-            {
-                {W/2,H/2 },
-                {W/2,-H/2 },
-                {-W/2,H/2 },
-                {-W/2,-H/2 }
-            };
             //int kkase = 0;
             while (true)
             {
-                if (canceled) return 0;
                 //if (kkase++ % 100 == 0) System.Diagnostics.Debug.WriteLine($"Y={Y},T={T}");
                 double su = SpeedUp();
-                if(su>0)
+                if (su > 0)
                 {
                     //System.Diagnostics.Debug.Write($"{DateTime.Now}\tSimulating...");
                     double fy = Y + su * speedY - G * su * su / 2, fsy = speedY - G * su, ft = (T + su * speedT) % (2 * Math.PI);
@@ -175,18 +178,18 @@ namespace _3DEmulator
                     double tdt = dt * 1;
                     if (model != null)
                     {
-                        for (; su - tdt > 0&&!canceled; su -= tdt)
+                        for (; su - tdt > 0; su -= tdt)
                         {
                             Simulate(tdt);
                             await Show();
                         }
                     }
-                    Y = fy;speedY = fsy; T = ft;
+                    Y = fy; speedY = fsy; T = ft;
                     //System.Diagnostics.Debug.WriteLine($"OK");
                 }
                 else Simulate(dt);
                 await Show();
-                if(!infinite&&Energy()<M*G*Math.Sqrt(W*W+H*H)/2)
+                if (!infinite && Energy() < M * G * R)
                 {
                     return AngleToZeroThree(T);
                 }
@@ -196,9 +199,9 @@ namespace _3DEmulator
         async Task Show()
         {
             if (model == null) return;
-            if(kase++==100)
+            if (kase++ == 50)
             {
-                await Task.Delay(10);
+                await Task.Delay(5);
                 model.Transform = origin.Copy().Rotate(new Vector3D(0, -1, 0), T / Math.PI * 180).Translate(new Vector3D(0, 0, Y)).Value;
                 kase = 0;
             }
@@ -233,25 +236,19 @@ namespace _3DEmulator
             for (int i = 1; i < p3.Length; i++) ans.Children.Add(CreateModel(brush, p0, p3[i - 1], p3[i]));
             return ans;
         }
-        public static Model3DGroup CreateCube(double x, double y, double z)
+        public static Model3DGroup CreateHex(List<double>angles, double r, double depth)
         {
-            Model3DGroup cube = new Model3DGroup();
-            Point3D[] p = new Point3D[8];
-            for (int i = 0; i < 8; i++) p[i] = new Point3D(i % 2 * x, i / 2 % 2 * y, i / 4 * z);
+            //System.Windows.MessageBox.Show(string.Join(", ", angles.Select(a => a / Math.PI * 180)));
+            Model3DGroup hex = new Model3DGroup();
+            var p=angles.Select(a=> new Point3D(r*Math.Cos(a),0,r*Math.Sin(a))).ToArray();
+            p = p.Concat(p.Select(v => new Point3D(v.X, depth, v.Z))).ToArray();
             var b = new SolidColorBrush(Colors.SlateGray);
-            ///1 3 4 2
-            ///5 6 8 7
-            ///1 2 6 5
-            ///2 4 8 6
-            ///3 7 8 4
-            ///1 5 7 3
-            cube.Children.Add(CreateModel(b, p[0], p[2], p[3], p[1]));
-            cube.Children.Add(CreateModel(b, p[4], p[5], p[7], p[6]));
-            cube.Children.Add(CreateModel(b, p[0], p[1], p[5], p[4]));
-            cube.Children.Add(CreateModel(b, p[1], p[3], p[7], p[5]));
-            cube.Children.Add(CreateModel(b, p[2], p[6], p[7], p[3]));
-            cube.Children.Add(CreateModel(b, p[0], p[4], p[6], p[2]));
-            return cube;
+            System.Diagnostics.Trace.Assert(angles.Count == 6);
+            hex.Children.Add(CreateModel(b, p[0], p[1], p[2], p[3], p[4], p[5]));
+            hex.Children.Add(CreateModel(b, p[11], p[10], p[9], p[8], p[7], p[6]));
+            int n = angles.Count();
+            for (int i = 0; i < n; i++) hex.Children.Add(CreateModel(b, p[i], p[n + i], p[n + (i + 1) % n], p[(i + 1) % n]));
+            return hex;
         }
         public static ModelVisual3D CreatePlane()
         {

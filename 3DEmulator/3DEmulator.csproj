@@ -54,12 +54,15 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="BouncingHexagon.cs" />
     <Compile Include="BouncingRectangle.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="Libraries\Events.cs" />
     <Compile Include="MyTrans.cs" />
     <Compile Include="PictureWindow.cs" />
     <Compile Include="PropelCreator.cs" />
+    <Compile Include="SimulateBouncingRectangleWindow.cs" />
+    <Compile Include="SimulateBouncingRectangleWindow.Parameter.cs" />
     <Compile Include="TuneCameraView.cs" />
     <Compile Include="TunePointView.cs" />
     <Compile Include="TuneValueView.cs" />
