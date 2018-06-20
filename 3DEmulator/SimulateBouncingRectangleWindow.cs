@@ -76,7 +76,7 @@ namespace _3DEmulator
             await Task.Run(() =>
             {
                 System.Threading.Thread.CurrentThread.Priority = System.Threading.ThreadPriority.Lowest;
-                Parallel.For(0, n + 1, /*new ParallelOptions { MaxDegreeOfParallelism = 10 },*/ new Action<int>(i =>
+                Parallel.For(0, n + 1, new ParallelOptions { MaxDegreeOfParallelism = 3 }, new Action<int>(i =>
                        {
                            System.Threading.Thread.CurrentThread.Priority = System.Threading.ThreadPriority.Lowest;
                            if (kase != kase_counter) return;
@@ -138,11 +138,11 @@ namespace _3DEmulator
                     {255,255,0,0 },
                     //{255,255,128+128/3,0 },
                     //{255,128+128/3,255,0 },
-                    //{ 255,255,255,0},
+                    { 255,255,255,0},
                     {255,0,255,0 },
-                    {255,255,0,0 },
-                    {255,0,255,0 },
-                    //{255,0,0,255 }
+                    //{255,255,0,0 },
+                    //{255,0,255,0 },
+                    {255,0,0,255 }
                     //{255,255,0,255 }
             };
             var format = PixelFormats.Bgra32;
