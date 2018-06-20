@@ -65,32 +65,39 @@ namespace _3DEmulator
                 }
             });
         }
+        int maxDegreeOfParallelism = 3;
+        bool binaryColor = false;
+        bool simulateHexagon = false;
         async Task<int[,]> Simulate(int n, int m, int kase)//return n*m array
         {
             //System.Diagnostics.Debug.Write($"Simulate({n},{m},{kase})...");
             if (kase != kase_counter) return null;
             n--; m--;
             int[,] result = new int[n + 1, m + 1];
-            int progress = 0, preprogress = -1;
+            int progress = 0;
             var startTime = DateTime.Now;
             await Task.Run(() =>
             {
                 System.Threading.Thread.CurrentThread.Priority = System.Threading.ThreadPriority.Lowest;
-                Parallel.For(0, n + 1, new ParallelOptions { MaxDegreeOfParallelism = 3 }, new Action<int>(i =>
+                var time = DateTime.Now;
+                Parallel.For(0, n + 1, new ParallelOptions { MaxDegreeOfParallelism = maxDegreeOfParallelism }, new Action<int>(i =>
                        {
                            System.Threading.Thread.CurrentThread.Priority = System.Threading.ThreadPriority.Lowest;
                            if (kase != kase_counter) return;
+                           var bouncingRectangle = simulateHexagon ? (object)new BouncingHexagon() : (object)new BouncingRectangle();
                            for (int j = 0; j <= m && kase == kase_counter; j++)
                            {
-                               if (System.Threading.Interlocked.Increment(ref progress) * 100 / (n + 1) / (m + 1) > preprogress)
+                               System.Threading.Interlocked.Increment(ref progress);
+                               if ((DateTime.Now-time).TotalMilliseconds>100)
                                {
-                                   Dispatcher.Invoke(new Action(() => this.Title = $"#{kase} Drawing n={n} m={m} {++preprogress} %"));
+                                   Dispatcher.Invoke(new Action(() => this.Title = $"#{kase} Drawing n={n} m={m} {(progress * 100.0 / (n + 1) / (m + 1)).ToString("F3")}% {progress}/{(n + 1) * (m + 1)}"));
+                                   time = DateTime.Now;
                                }
                                Parameter p = new Parameter(this, 0, 0, 0);
                                p.z = currentValue.z;
                                p.y = (minValue.y * (n - i) + maxValue.y * (i)) / n;
                                p.x = (minValue.x * (m - j) + maxValue.x * (j)) / m;
-                               result[i, j] = Query(p);
+                               result[i, j] = bouncingRectangle.GetType()==typeof(BouncingHexagon)? Query((BouncingHexagon)bouncingRectangle, p): Query((BouncingRectangle)bouncingRectangle, p);
                            }
                        }));
             });
@@ -133,7 +140,29 @@ namespace _3DEmulator
         async Task<BitmapSource> ToImageSource(int[,]result)
         {
             int n = result.GetLength(0), m = result.GetLength(1);
-            var c = new byte[4, 4]
+            var c =simulateHexagon? (binaryColor ? new byte[6, 4]
+            {
+                    {255,255,0,0 },
+                    {255,0,255,0 },
+                    {255,255,0,0 },
+                    {255,255,0,0 },
+                    {255,0,255,0 },
+                    {255,255,0,0 }
+            } : new byte[6, 4]
+            {
+                    {255,255,0,0 },
+                    {255,255,128+128/3,0 },
+                    {255,128+128/3,255,0 },
+                    {255,0,255,0 },
+                    {255,0,0,255 },
+                    {255,255,0,255 }
+            }) : (binaryColor ? new byte[4, 4]
+            {
+                    {255,255,0,0 },
+                    {255,0,255,0 },
+                    {255,255,0,0 },
+                    {255,0,255,0 }
+            } : new byte[4, 4]
             {
                     {255,255,0,0 },
                     //{255,255,128+128/3,0 },
@@ -144,7 +173,7 @@ namespace _3DEmulator
                     //{255,0,255,0 },
                     {255,0,0,255 }
                     //{255,255,0,255 }
-            };
+            });
             var format = PixelFormats.Bgra32;
             var stride = (m * format.BitsPerPixel + 7) / 8;
             var arr = new byte[n * stride];
@@ -163,10 +192,16 @@ namespace _3DEmulator
             ans.Freeze();
             return ans;
         }
-        int Simulate(Parameter v)
+        int Simulate(BouncingHexagon t, Parameter v)
+        {
+            t.Reset(v.WHratio, 1, false);
+            var ans = t.Start(v.height, v.angle / 180 * Math.PI, false).Result;
+            return ans;
+        }
+        int Simulate(BouncingRectangle t, Parameter v)
         {
             //System.Diagnostics.Debug.WriteLine($"Simulate(h={v.height},a={v.angle},r={v.WHratio}){{w={Math.Sin(Math.Atan(v.WHratio))*2},h={Math.Cos(Math.Atan(v.WHratio)) * 2}}}");
-            var t = new BouncingRectangle(Math.Sin(Math.Atan(v.WHratio))*2,Math.Cos(Math.Atan(v.WHratio))*2, false);
+            t.Reset(Math.Sin(Math.Atan(v.WHratio))*2,Math.Cos(Math.Atan(v.WHratio))*2, false);
             var ans= t.Start(v.height, v.angle/180*Math.PI,false).Result;
             //System.Diagnostics.Debug.WriteLine("OK");
             return ans;
@@ -208,9 +243,13 @@ namespace _3DEmulator
         //int maxDictSize = 1000000;
         //Dictionary<Parameter, int> dict = new Dictionary<Parameter, int>();
         //Random rand = new Random();
-        int Query(Parameter v)
+        int Query(BouncingHexagon t, Parameter v)
         {
-            return Simulate(v);
+            return Simulate(t, v);
+        }
+        int Query(BouncingRectangle t, Parameter v)
+        {
+            return Simulate(t,v);
             //lock (dict)
             //{
             //    if (!dict.ContainsKey(v))
@@ -226,6 +265,24 @@ namespace _3DEmulator
             var b = new Button { Content = text };
             b.Click += delegate { action(); };
             return b;
+        }
+        TextBox NewTextBox(string text,Func<string,bool>action)
+        {
+            TextBox txbFixed = new TextBox { Text = text };
+            txbFixed.TextInput += async delegate
+            {
+                txbFixed.Background = action(txbFixed.Text) ? Brushes.LightGreen : Brushes.Red;
+                await Task.Delay(500);
+                txbFixed.Background = Brushes.White;
+            };
+            return txbFixed;
+        }
+        CheckBox NewCheckBox(string text,Action<bool>action,bool isChecked=false)
+        {
+            CheckBox ans = new CheckBox { Content = text ,IsChecked=isChecked};
+            ans.Checked += delegate { action(true); };
+            ans.Unchecked += delegate { action(false); };
+            return ans;
         }
         Label LBstatus;
         void InitializeViews()
@@ -251,33 +308,28 @@ namespace _3DEmulator
                     SetGridPosition(1,0,MainViewPort = new Viewport3D { ClipToBounds = true }),
                     SetGridPosition(1,1,new Func<UIElement>(()=>
                     {
-                        Label l1=new Label(),l2=new Label(),lx=new Label(),ly=new Label();
-                        TextBox txbFixed=new TextBox();
-                        txbFixed.AcceptsReturn=false;
-                        txbFixed.TextInput+=async delegate
+                        string[] tx={"Height","Angle","WHratio"};
+                        Label l1=new Label{Content=tx[0] },l2=new Label{Content=tx[1] },lx=new Label(),ly=new Label();
+                        TextBox txbFixed=NewTextBox("...",new Func<string, bool>(s=>
                         {
                             double v;
-                            if(double.TryParse(txbFixed.Text,out v))
-                            {
-                                currentValue.z=v;
-                                txbFixed.Background=Brushes.LightGreen;
-                                Draw();
-                            }
-                            else txbFixed.Background=Brushes.Red;
-                            await Task.Delay(500);
-                            txbFixed.Background=Brushes.White;
-                        };
+                            if(!double.TryParse(s,out v))return false;
+                            currentValue.z=v;
+                            Draw();
+                            return true;
+                        }));
                         updateInfo=new Action(()=>
                         {
                             lx.Content=$"{minValue.x} ~ {maxValue.x}";
                             ly.Content=$"{minValue.y} ~ {maxValue.y}";
                             txbFixed.Text=currentValue.z.ToString();
                         });
-                        string[] tx={"Height","Angle","WHratio"};
                         return new Grid
                         {
                             RowDefinitions=
                             {
+                                new RowDefinition{Height=new GridLength(1,GridUnitType.Star)},
+                                new RowDefinition{Height=new GridLength(1,GridUnitType.Star)},
                                 new RowDefinition{Height=new GridLength(1,GridUnitType.Star)},
                                 new RowDefinition{Height=new GridLength(1,GridUnitType.Star)},
                                 new RowDefinition{Height=new GridLength(1,GridUnitType.Star)},
@@ -311,7 +363,29 @@ namespace _3DEmulator
                                 SetGridPosition(2,4,NewButton("→←",new Action(()=>{maxValue.y=minValue.y+(maxValue.y-minValue.y)/zoomRatio;Draw(); }))),
                                 SetGridPosition(3,4,NewButton("↓",new Action(()=>{var v=(maxValue.y-minValue.y)*moveRatio;minValue.y-=v; maxValue.y-=v;Draw(); }))),
                                 SetGridPosition(4,4,NewButton("↑",new Action(()=>{var v=(maxValue.y-minValue.y)*moveRatio;minValue.y+=v; maxValue.y+=v;Draw(); }))),
-                                SetGridPosition(1,5,ly,4,1)
+                                SetGridPosition(1,5,ly,4,1),
+                                SetGridPosition(0,6,new Label{ Content="Parallelism:"}),
+                                SetGridPosition(1,6,NewTextBox(maxDegreeOfParallelism.ToString(),new Func<string, bool>(s=>
+                                {
+                                    int v;
+                                    if(!int.TryParse(s,out v))return false;
+                                    maxDegreeOfParallelism=v;
+                                    return true;
+                                }))),
+                                SetGridPosition(3,6,NewCheckBox("Binray Color",new Action<bool>(c=>binaryColor=c),binaryColor ),2,1),
+                                SetGridPosition(0,7,new Grid
+                                {
+                                    ColumnDefinitions=
+                                    {
+                                        new ColumnDefinition{Width=new GridLength(1,GridUnitType.Star)},
+                                        new ColumnDefinition{Width=new GridLength(1,GridUnitType.Star)}
+                                    },
+                                    Children=
+                                    {
+                                        SetGridPosition(0,0,NewRadioButton("Rectangle",new Action(()=>{simulateHexagon=false;Draw(); }),true)),
+                                        SetGridPosition(1,0,NewRadioButton("Hexagon",new Action(()=>{simulateHexagon=true;Draw(); })))
+                                    }
+                                },5,1)
                             }
                         };
                     })())
@@ -322,13 +396,13 @@ namespace _3DEmulator
             //new TuneWindow(Camera, EnvironmentLight).Show();
             //new PictureWindow(Constants.picturePort).Show();
         }
-
-        BouncingRectangle br=null;
+        object br = null;
         private async void IMGmap_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             if (br != null)
             {
-                br.Cancel();
+                if (br.GetType() == typeof(BouncingHexagon)) (br as BouncingHexagon).Cancel();
+                else (br as BouncingRectangle).Cancel();
                 br = null;
             }
             var p = new Func<Point, Point>(_ => new Point(_.X / IMGmap.ActualWidth, _.Y / IMGmap.ActualHeight))(e.GetPosition(IMGmap));
@@ -338,10 +412,19 @@ namespace _3DEmulator
             this.MainViewPort.Children.Clear();
             this.MainViewPort.Children.Add(BouncingRectangle.CreatePlane());
             this.MainViewPort.Children.Add(new ModelVisual3D { Content = EnvironmentLight });
-            br = new BouncingRectangle(Math.Sin(Math.Atan(currentValue.WHratio)) * 2, Math.Cos(Math.Atan(currentValue.WHratio)) * 2, true);
-            this.MainViewPort.Children.Add(new ModelVisual3D { Content = br.model });
             System.Threading.Thread.CurrentThread.Priority = System.Threading.ThreadPriority.Highest;
-            await br.Start(currentValue.height, currentValue.angle / 180 * Math.PI);
+            if (simulateHexagon)
+            {
+                br = new BouncingHexagon(currentValue.WHratio, 1, true);
+                this.MainViewPort.Children.Add(new ModelVisual3D { Content = (br as BouncingHexagon).model });
+                await (br as BouncingHexagon).Start(currentValue.height, currentValue.angle / 180 * Math.PI);
+            }
+            else
+            {
+                br = new BouncingRectangle(Math.Sin(Math.Atan(currentValue.WHratio)) * 2, Math.Cos(Math.Atan(currentValue.WHratio)) * 2, true);
+                this.MainViewPort.Children.Add(new ModelVisual3D { Content = (br as BouncingRectangle).model });
+                await (br as BouncingRectangle).Start(currentValue.height, currentValue.angle / 180 * Math.PI);
+            }
             //System.Diagnostics.Debug.WriteLine("OK");
         }
 

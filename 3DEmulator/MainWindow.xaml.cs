@@ -69,8 +69,9 @@ namespace _3DEmulator
         }
         void InitializeViews()
         {
-            new TuneWindow(Camera, EnvironmentLight).Show();
+            //new TuneWindow(Camera, EnvironmentLight).Show();
             new SimulateBouncingRectangleWindow().Show();
+            this.Close();
         }
         public MainWindow()
         {

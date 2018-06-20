@@ -19,7 +19,7 @@ namespace _3DEmulator
         double /*speedX = 0,*/ speedY = 0, speedT = 0;
         double bounceCoe = 0.7;
         MyTrans origin;
-        public BouncingRectangle(double x, double z,bool createModel)
+        public void Reset(double x, double z, bool createModel)
         {
             W = x; H = z;
             //https://zh.wikipedia.org/wiki/轉動慣量列表
@@ -33,6 +33,11 @@ namespace _3DEmulator
                 model.Children.Add(CreateModel(new SolidColorBrush(Colors.Red), new Point3D(x * 0.2, 0, -z * 0.6), new Point3D(-x * 0.2, 0, -z * 0.6), new Point3D(0, 0, -z * 0.8)));
                 origin = new MyTrans(model);
             }
+        }
+        public BouncingRectangle() { }
+        public BouncingRectangle(double x, double z,bool createModel)
+        {
+            Reset(x, z, createModel);
         }
         double GetNsToStop(double x,double y)
         {
@@ -151,6 +156,7 @@ namespace _3DEmulator
         public void Cancel() { canceled = true; }
         public async Task<int> Start(double height,double angle,bool infinite=true)
         {
+            canceled = false;
             dropFromHeight = height;dropFromAngle = angle;
             DropFrom(height, angle);
             //DropFrom(10, 30.0 / 180 * Math.PI);
@@ -175,7 +181,7 @@ namespace _3DEmulator
                     double tdt = dt * 1;
                     if (model != null)
                     {
-                        for (; su - tdt > 0&&!canceled; su -= tdt)
+                        for (; su - tdt > 0 && !canceled; su -= tdt)
                         {
                             Simulate(tdt);
                             await Show();

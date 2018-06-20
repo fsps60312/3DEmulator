@@ -11,6 +11,7 @@ namespace _3DEmulator
     class BouncingHexagon
     {
         public Model3DGroup model = null;
+        bool canceled = false;
         double M = 1;
         double I;
         double /*X=0,*/ Y = 0, T = 0;
@@ -19,7 +20,7 @@ namespace _3DEmulator
         double /*speedX = 0,*/ speedY = 0, speedT = 0;
         double bounceCoe = 0.7;
         MyTrans origin;
-        public BouncingHexagon(double ratio, double r, bool createModel)
+        public void Reset(double ratio, double r, bool createModel)
         {
             R = r;
             //https://zh.wikipedia.org/wiki/轉動慣量列表
@@ -35,6 +36,12 @@ namespace _3DEmulator
                 origin = new MyTrans(model);
             }
         }
+        public BouncingHexagon() { }
+        public BouncingHexagon(double ratio, double r, bool createModel)
+        {
+            Reset(ratio, r, createModel);
+        }
+        public void Cancel() { canceled = true; }
         static double Cross(Tuple<double, double> a, Tuple<double, double> b) { return a.Item1 * b.Item2 - b.Item1 * a.Item2; }
         static double Dot(Tuple<double, double> a, Tuple<double, double> b) { return a.Item1 * b.Item1 + a.Item2 * b.Item2; }
         static double GetI(List<Tuple<double, double>> p)
@@ -162,12 +169,14 @@ namespace _3DEmulator
         }
         public async Task<int> Start(double height, double angle, bool infinite = true)
         {
+            canceled = false;
             dropFromHeight = height; dropFromAngle = angle;
             DropFrom(height, angle);
             //DropFrom(10, 30.0 / 180 * Math.PI);
             //int kkase = 0;
             while (true)
             {
+                if (canceled) return 0;
                 //if (kkase++ % 100 == 0) System.Diagnostics.Debug.WriteLine($"Y={Y},T={T}");
                 double su = SpeedUp();
                 if (su > 0)
@@ -178,7 +187,7 @@ namespace _3DEmulator
                     double tdt = dt * 1;
                     if (model != null)
                     {
-                        for (; su - tdt > 0; su -= tdt)
+                        for (; su - tdt > 0 && !canceled; su -= tdt)
                         {
                             Simulate(tdt);
                             await Show();
