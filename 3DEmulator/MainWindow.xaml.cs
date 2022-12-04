@@ -22,6 +22,7 @@ namespace _3DEmulator
     /// </summary>
     public partial class MainWindow : Window
     {
+        Viewport3D MainViewPort;
         //private Vector3D CalculateTraingleNormal(Point3D p0, Point3D p1, Point3D p2)
         //{
         //    Vector3D v0 = new Vector3D(
@@ -69,13 +70,14 @@ namespace _3DEmulator
         }
         void InitializeViews()
         {
+            this.Content = MainViewPort = new Viewport3D { ClipToBounds = true };
             //new TuneWindow(Camera, EnvironmentLight).Show();
             new SimulateBouncingRectangleWindow().Show();
-            this.Close();
+            //this.Close();
         }
         public MainWindow()
         {
-            InitializeComponent();
+            //InitializeComponent();
             InitializeViews();
             triangleButtonClick();
             StartAnimation();

@@ -6,9 +6,9 @@
         xmlns:local="clr-namespace:_3DEmulator"
         mc:Ignorable="d"
         Title="MainWindow" Height="350" Width="525">
-    <Grid>
+    <!--<Grid>
         <Viewport3D Name="MainViewPort" ClipToBounds="True">
-            <!--Viewport3D.Camera>
+            --><!--Viewport3D.Camera>
                 <PerspectiveCamera 
                     FarPlaneDistance="100"
                     LookDirection="-12,-11,-10"
@@ -16,7 +16,7 @@
                     NearPlaneDistance="1" 
                     Position="11,10,9" 
                     FieldOfView="75" />
-            </-->
+            </--><!--
         </Viewport3D>
-    </Grid>
+    </Grid>-->
 </Window>
